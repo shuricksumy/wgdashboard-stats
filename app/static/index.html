@@ -26,8 +26,8 @@ h1 { font-size: 20px; font-weight: 500; margin: 0; }
 .card { background: var(--card); border: .5px solid var(--border); border-radius: 12px; padding: 14px 16px; margin-bottom: 14px; }
 .controls { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; }
 .controls > div { min-width: 0; }
-input[type=date] { -webkit-appearance: none; appearance: none; display: block; min-width: 0; max-width: 100%; text-align: left; }
-input[type=date]::-webkit-date-and-time-value { text-align: left; }
+input[type=date] { -webkit-appearance: none; appearance: none; display: block; min-width: 0; max-width: 100%; text-align: center; line-height: 36px; padding-top: 0; padding-bottom: 0; }
+input[type=date]::-webkit-date-and-time-value { text-align: center; margin: 0; line-height: 36px; }
 label { display: block; font-size: 12px; color: var(--muted); margin-bottom: 4px; }
 select, input[type=date], button, .btn {
   width: 100%; height: 38px; padding: 0 10px; font: inherit; color: var(--text); background: var(--card);
@@ -258,6 +258,15 @@ function render() {
   drawChart(d.daily);
 }
 
+function hatch(color) {
+  const c = document.createElement("canvas"); c.width = c.height = 8;
+  const g = c.getContext("2d");
+  g.fillStyle = color + "40"; g.fillRect(0, 0, 8, 8);
+  g.strokeStyle = color; g.lineWidth = 2;
+  g.beginPath(); g.moveTo(-2, 10); g.lineTo(10, -2); g.moveTo(-2, 2); g.lineTo(2, -2); g.moveTo(6, 10); g.lineTo(10, 6); g.stroke();
+  return g.createPattern(c, "repeat");
+}
+
 function drawChart(daily) {
   const css = getComputedStyle(document.documentElement);
   const max = Math.max(1, ...daily.map(x => x.rx + x.tx));
@@ -269,12 +278,12 @@ function drawChart(daily) {
   const allc = css.getPropertyValue("--all").trim();
   const ds = state.view === "total" ? [
     { label: "In + out", data: daily.map(x => (x.rx + x.tx - x.est_rx - x.est_tx) / div), backgroundColor: allc, stack: "s" },
-    { label: "In + out (estimated)", data: daily.map(x => (x.est_rx + x.est_tx) / div), backgroundColor: allc + "55", stack: "s" },
+    { label: "In + out (estimated)", data: daily.map(x => (x.est_rx + x.est_tx) / div), backgroundColor: hatch(allc), stack: "s" },
   ] : [
     { label: "Sent", data: daily.map(x => (x.tx - x.est_tx) / div), backgroundColor: txc, stack: "s" },
-    { label: "Sent (estimated)", data: daily.map(x => x.est_tx / div), backgroundColor: txc + "55", stack: "s" },
+    { label: "Sent (estimated)", data: daily.map(x => x.est_tx / div), backgroundColor: hatch(txc), stack: "s" },
     { label: "Received", data: daily.map(x => (x.rx - x.est_rx) / div), backgroundColor: rxc, stack: "s" },
-    { label: "Received (estimated)", data: daily.map(x => x.est_rx / div), backgroundColor: rxc + "55", stack: "s" },
+    { label: "Received (estimated)", data: daily.map(x => x.est_rx / div), backgroundColor: hatch(rxc), stack: "s" },
   ];
   $("lg-est").hidden = !daily.some(x => x.est_rx + x.est_tx > 0);
   document.querySelectorAll(".v-split").forEach(e => e.hidden = state.view === "total");

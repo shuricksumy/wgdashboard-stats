@@ -2,8 +2,8 @@ name: Build and publish Docker image
 
 on:
   push:
-    # `dev` publishes ghcr.io/...:dev for testing on a real server before merging to main.
-    branches: ["main", "dev"]
+    # Every push to main publishes :latest (+ a short-sha tag); the Release workflow adds X.Y.Z / X.Y.
+    branches: ["main"]
     tags: ["v*.*.*"]
   # Renovate and Dependabot merge their own PRs once this build passes
   # (required by the main-branch ruleset), so PRs build the image too.
@@ -59,7 +59,6 @@ jobs:
           images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
           tags: |
             type=raw,value=latest,enable={{is_default_branch}}
-            type=raw,value=dev,enable=${{ github.ref == 'refs/heads/dev' }}
             type=semver,pattern={{version}}
             type=semver,pattern={{major}}.{{minor}}
             type=sha,prefix=,format=short
