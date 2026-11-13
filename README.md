@@ -17,7 +17,7 @@ WGDashboard only shows lifetime totals per peer. It does, however, record a snap
 
 - Any date range, with presets: this month, last month, last 30 days, this year
 - Sent / received / total per peer and overall, with each peer's share
-- Daily stacked chart; tap a peer to see only its days
+- Daily chart, either sent and received stacked or combined into one in + out bar; tap a peer to see only its days
 - Restricted and deleted peers included
 - CSV export of the selected range
 - Periods when WGDashboard wasn't recording are spread out and marked *estimated* instead of showing up as one huge spike
@@ -53,7 +53,6 @@ Published to GitHub Container Registry as `ghcr.io/shuricksumy/wgdashboard-stats
 | --- | --- |
 | `latest` | the `main` branch |
 | `1.0.0`, `1.0` | release tags `v1.0.0`, … (pin one of these for a stable setup) |
-| `dev` | the `dev` branch, for testing changes before they reach `main` |
 
 ### Reverse proxy
 
@@ -113,7 +112,7 @@ python tools/make_demo_db.py demo/wgdashboard.db
 WGD_DB=demo/wgdashboard.db STATS_DB=demo/stats.db uvicorn app.main:app --reload
 ```
 
-Work happens on `dev` (publishes the `:dev` image) and reaches `main` through a pull request. GitHub Actions run the tests and build the image on every push and pull request, CodeQL scans the code weekly, Dependabot and Renovate keep dependencies and pinned actions up to date (patch updates merge themselves once checks pass), and old image tags are cleaned up weekly. Releases are made with the **Release** workflow (Actions → Release → Run workflow on `main`, enter e.g. `1.1.0`): it runs the tests, creates the tag and GitHub release (notes from `docs/releases/vX.Y.Z.md` if present) and publishes the `X.Y.Z`, `X.Y` and `latest` images. Pushing a `vX.Y.Z` tag yourself also publishes the images.
+There is a single branch, `main`: every push to it runs the tests and publishes `:latest`. Pull requests (Dependabot, Renovate, or short-lived feature branches, deleted after merging) are tested and built but not published. GitHub Actions also scan the code with CodeQL weekly, Dependabot and Renovate keep dependencies and pinned actions up to date (patch updates merge themselves once checks pass), and old image tags are cleaned up weekly. Releases are made with the **Release** workflow (Actions → Release → Run workflow on `main`, enter e.g. `1.1.0`): it runs the tests, creates the tag and GitHub release (notes from `docs/releases/vX.Y.Z.md` if present) and publishes the `X.Y.Z`, `X.Y` and `latest` images. Pushing a `vX.Y.Z` tag yourself also publishes the images.
 
 ## Roadmap
 

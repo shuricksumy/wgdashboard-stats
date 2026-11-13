@@ -1,6 +1,6 @@
 services:
   wgdashboard-stats:
-    # :latest follows main; pin a release (e.g. :1.0) for a stable setup, or use :dev to test.
+    # :latest follows main; pin a release (e.g. :1.1) for a stable setup.
     image: ghcr.io/shuricksumy/wgdashboard-stats:latest
     container_name: wgdashboard-stats
     restart: unless-stopped

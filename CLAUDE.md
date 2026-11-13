@@ -29,5 +29,5 @@ docker compose up -d --build
 
 - Never write to WGDashboard's database; it is opened with `mode=ro`.
 - WGDashboard values are GB floats (`bytes / 1024**3`); convert to integer bytes at ingest.
-- Docker image is published to GHCR by `.github/workflows/docker-publish.yml`: `:dev` from the `dev` branch, `:latest` from `main`, semver from `v*.*.*` tags.
-- Releases: `.github/workflows/release.yml` (manual, on `main`, input `X.Y.Z`) creates the tag + GitHub release and publishes `X.Y.Z`/`X.Y`/`latest`. Put release notes in `docs/releases/vX.Y.Z.md` before running it. Work on `dev`, merge to `main` via PR.
+- Docker image is published to GHCR by `.github/workflows/docker-publish.yml`: `:latest` (+ short sha) from every push to `main`, semver from `v*.*.*` tags.
+- Releases: `.github/workflows/release.yml` (manual, on `main`, input `X.Y.Z`) creates the tag + GitHub release and publishes `X.Y.Z`/`X.Y`/`latest`. Put release notes in `docs/releases/vX.Y.Z.md` before running it. Only `main` is long-lived; changes go to `main` directly or through a short-lived branch + PR that is deleted after merging.
