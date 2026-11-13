@@ -17,6 +17,9 @@ services:
       - INGEST_INTERVAL=600   # seconds between imports
       - TZ=UTC                # your timezone, e.g. Europe/Berlin
       - LOG_LEVEL=INFO
+      # Serve under a path instead of a whole hostname, e.g. https://example.com/wgstat/
+      # (then use PathPrefix(`/wgstat`) in the router rule below)
+      # - BASE_PATH=/wgstat
     # For a quick test without Traefik, uncomment and open http://<server>:8080
     # ports:
     #   - "8080:8080"

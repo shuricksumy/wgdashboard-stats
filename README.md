@@ -42,6 +42,7 @@ Or build locally with `docker compose up -d --build` using [docker-compose.yml](
 | `GAP_MINUTES` | `60` | A peer with no snapshots for longer than this has its usage spread over the gap and marked estimated |
 | `TZ` | `UTC` | Timezone for "data updated" times; WGDashboard stores local time |
 | `PORT` | `8080` | HTTP port |
+| `BASE_PATH` | *(empty)* | Serve under a path, e.g. `/wgstat` → `https://example.com/wgstat/`. With Traefik use ``Host(`example.com`) && PathPrefix(`/wgstat`)`` and no StripPrefix middleware |
 | `LOG_LEVEL` | `INFO` | Python log level |
 
 `stats.db` can be deleted at any time; it is rebuilt from WGDashboard's history on the next import.

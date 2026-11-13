@@ -8,8 +8,8 @@ from contextlib import asynccontextmanager
 from datetime import date
 from pathlib import Path
 
-from fastapi import FastAPI, HTTPException, Query
-from fastapi.responses import FileResponse, StreamingResponse
+from fastapi import APIRouter, FastAPI, HTTPException, Query
+from fastapi.responses import FileResponse, RedirectResponse, StreamingResponse
 from fastapi.staticfiles import StaticFiles
 
 from app import queries, store
@@ -19,6 +19,9 @@ WGD_DB = os.environ.get("WGD_DB", "/data/wgdashboard.db")
 STATS_DB = os.environ.get("STATS_DB", "/state/stats.db")
 INTERVAL = int(os.environ.get("INGEST_INTERVAL", "600"))
 STATIC = Path(__file__).parent / "static"
+# Serve everything under a path prefix, e.g. BASE_PATH=/wgstat -> https://host/wgstat/
+BASE_PATH = "/" + os.environ.get("BASE_PATH", "").strip("/")
+BASE_PATH = "" if BASE_PATH == "/" else BASE_PATH
 
 logging.basicConfig(level=os.environ.get("LOG_LEVEL", "INFO"), format="%(asctime)s %(name)s %(levelname)s %(message)s")
 log = logging.getLogger("wgstats")
@@ -52,7 +55,8 @@ async def lifespan(_app):
     _stop.set()
 
 
-app = FastAPI(title="wgdashboard-stats", lifespan=lifespan)
+app = FastAPI(title="wgdashboard-stats", lifespan=lifespan, docs_url=None, redoc_url=None, openapi_url=None)
+router = APIRouter()
 
 
 def _range(start: date, end: date):
@@ -62,20 +66,20 @@ def _range(start: date, end: date):
         raise HTTPException(400, "range is too long")
 
 
-@app.get("/api/configs")
+@router.get("/api/configs")
 def api_configs():
     with _lock:
         return queries.configs(db)
 
 
-@app.get("/api/usage")
+@router.get("/api/usage")
 def api_usage(config: str, start: date, end: date, peer: str | None = Query(None)):
     _range(start, end)
     with _lock:
         return queries.usage(db, config, start, end, peer)
 
 
-@app.get("/api/usage.csv")
+@router.get("/api/usage.csv")
 def api_usage_csv(config: str, start: date, end: date):
     _range(start, end)
     with _lock:
@@ -94,25 +98,34 @@ def api_usage_csv(config: str, start: date, end: date):
                              headers={"Content-Disposition": f'attachment; filename="{name}"'})
 
 
-@app.get("/api/status")
+@router.get("/api/status")
 def api_status():
     with _lock:
         return queries.status(db)
 
 
-@app.post("/api/refresh")
+@router.post("/api/refresh")
 def api_refresh():
     return {"ingested": run_ingest()}
 
 
 @app.get("/healthz")
+@router.get("/healthz")
 def healthz():
     return {"ok": True}
 
 
-@app.get("/")
+@router.get("/")
 def index():
     return FileResponse(STATIC / "index.html")
 
 
-app.mount("/static", StaticFiles(directory=STATIC), name="static")
+app.include_router(router, prefix=BASE_PATH)
+app.mount(f"{BASE_PATH}/static", StaticFiles(directory=STATIC), name="static")
+
+if BASE_PATH:
+    # The page uses relative URLs, so it must be opened with the trailing slash.
+    @app.get(BASE_PATH, include_in_schema=False)
+    @app.get("/", include_in_schema=False)
+    def to_base():
+        return RedirectResponse(f"{BASE_PATH}/")

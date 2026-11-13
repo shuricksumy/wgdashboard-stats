@@ -60,3 +60,27 @@ def test_configs_status_and_validation(client):
     bad = client.get("/api/usage", params={"config": "wg0", "start": "2026-10-05", "end": "2026-10-01"})
     assert bad.status_code == 400
     assert client.get("/").status_code == 200
+
+
+def test_base_path(tmp_path, monkeypatch):
+    wgd = FakeWGD(tmp_path / "wgdashboard.db").add_config("wg0")
+    monkeypatch.setenv("WGD_DB", wgd.path)
+    monkeypatch.setenv("STATS_DB", str(tmp_path / "stats.db"))
+    monkeypatch.setenv("INGEST_INTERVAL", "0")
+    monkeypatch.setenv("BASE_PATH", "/wgstat/")
+    import app.main as m
+    importlib.reload(m)
+    try:
+        with TestClient(m.app) as c:
+            assert c.get("/wgstat/").status_code == 200
+            assert c.get("/wgstat/static/chart.umd.min.js").status_code == 200
+            assert c.post("/wgstat/api/refresh").status_code == 200
+            assert c.get("/wgstat/api/configs").status_code == 200
+            for path in ("/wgstat", "/"):
+                r = c.get(path, follow_redirects=False)
+                assert r.status_code == 307 and r.headers["location"] == "/wgstat/"
+            assert c.get("/api/configs").status_code == 404
+            assert c.get("/healthz").status_code == 200
+    finally:
+        monkeypatch.delenv("BASE_PATH")
+        importlib.reload(m)
