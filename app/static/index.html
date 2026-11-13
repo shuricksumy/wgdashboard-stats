@@ -24,7 +24,10 @@ main { max-width: 1100px; margin: 0 auto; padding: 16px; }
 header { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 14px; }
 h1 { font-size: 20px; font-weight: 500; margin: 0; }
 .card { background: var(--card); border: .5px solid var(--border); border-radius: 12px; padding: 14px 16px; margin-bottom: 14px; }
-.controls { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 10px; }
+.controls { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; }
+.controls > div { min-width: 0; }
+input[type=date] { -webkit-appearance: none; appearance: none; display: block; min-width: 0; max-width: 100%; text-align: left; }
+input[type=date]::-webkit-date-and-time-value { text-align: left; }
 label { display: block; font-size: 12px; color: var(--muted); margin-bottom: 4px; }
 select, input[type=date], button, .btn {
   width: 100%; height: 38px; padding: 0 10px; font: inherit; color: var(--text); background: var(--card);
@@ -51,10 +54,10 @@ table { width: 100%; border-collapse: collapse; font-size: 14px; }
 th, td { padding: 8px 6px; border-bottom: .5px solid var(--border); text-align: right; white-space: nowrap; }
 th:first-child, td:first-child { text-align: left; white-space: normal; }
 th { font-weight: 400; color: var(--muted); cursor: pointer; user-select: none; }
-th:not(.sorted)::after { content: " ↕"; opacity: .45; font-size: 12px; }
+th:not(.sorted)::after { content: " \21C5\FE0E"; opacity: .45; font-size: 12px; }
 th.sorted { color: var(--text); font-weight: 500; }
 tbody tr { cursor: pointer; }
-.pname { color: var(--accent); font-weight: 500; }
+.pname { color: var(--accent); font-weight: 500; display: inline-block; max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; vertical-align: bottom; }
 .pname::after { content: " ›"; opacity: .6; }
 tbody tr:hover, tbody tr.sel { background: var(--soft); }
 tfoot td { font-weight: 500; border-bottom: none; }
@@ -76,7 +79,14 @@ footer { display: flex; justify-content: space-between; align-items: center; gap
 .chart-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; flex-wrap: wrap; margin-bottom: 8px; }
 .approx { color: var(--muted); cursor: help; }
 @media (max-width: 720px) {
-  .controls { grid-template-columns: 1fr 1fr; }
+  .controls { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  table { font-size: 13px; table-layout: fixed; }
+  th, td { padding: 8px 3px; }
+  th:first-child, td:first-child { width: 37%; }
+  th:not(:first-child), td:not(:first-child) { width: 21%; }
+  .pname::after { content: none; }
+  td:first-child { overflow: hidden; }
+  td .badge { margin-left: 0; display: inline-block; }
   .controls .cfg { grid-column: 1 / -1; }
   .stats { grid-template-columns: 1fr 1fr; }
   .hide-sm { display: none; }
@@ -233,7 +243,7 @@ function render() {
   rows.sort((a, b) => (k === "name" ? a.name.localeCompare(b.name) : a[k] - b[k]) * dir);
   $("rows").innerHTML = rows.map(p => `
     <tr data-id="${p.id}" class="${p.id === state.peer ? "sel" : ""}">
-      <td><span class="pname">${esc(p.name)}</span>${p.status !== "active" ? `<span class="badge ${p.status}">${p.status}</span>` : ""}
+      <td><span class="pname" title="${esc(p.name)}">${esc(p.name)}</span>${p.status !== "active" ? `<span class="badge ${p.status}">${p.status}</span>` : ""}
         <div class="bar"><span style="width:${(p.share * 100).toFixed(1)}%"></span></div></td>
       <td>${fmt(p.tx)}</td><td>${fmt(p.rx)}</td><td>${(p.est_rx + p.est_tx) > 0.05 * p.total ? `<span class="approx" title="${fmt(p.est_rx + p.est_tx)} estimated (no snapshots)">≈</span>` : ""}${fmt(p.total)}</td>
       <td class="hide-sm">${(p.share * 100).toFixed(1)}%</td>
