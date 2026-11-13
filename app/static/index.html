@@ -1,0 +1,295 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>WireGuard usage</title>
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'><rect x='1' y='8' width='3' height='7' fill='%237F77DD'/><rect x='6' y='4' width='3' height='11' fill='%231D9E75'/><rect x='11' y='1' width='3' height='14' fill='%237F77DD'/></svg>">
+<style>
+:root {
+  --bg: #f6f5f1; --card: #ffffff; --soft: #f1efe8; --text: #1f1e1c; --muted: #6b6a65;
+  --border: rgba(0,0,0,.12); --accent: #185FA5; --accent-bg: #E6F1FB; --rx: #7F77DD; --tx: #1D9E75; --danger: #A32D2D;
+  --radius: 8px;
+}
+@media (prefers-color-scheme: dark) {
+  :root { --bg: #161615; --card: #1f1f1d; --soft: #2a2a27; --text: #ecebe6; --muted: #a3a29b;
+    --border: rgba(255,255,255,.14); --accent: #85B7EB; --accent-bg: #0C447C; --danger: #F09595; }
+}
+* { box-sizing: border-box; }
+body { margin: 0; background: var(--bg); color: var(--text); font: 15px/1.5 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; }
+main { max-width: 1100px; margin: 0 auto; padding: 16px; }
+header { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 14px; }
+h1 { font-size: 20px; font-weight: 500; margin: 0; }
+.card { background: var(--card); border: .5px solid var(--border); border-radius: 12px; padding: 14px 16px; margin-bottom: 14px; }
+.controls { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 10px; }
+label { display: block; font-size: 12px; color: var(--muted); margin-bottom: 4px; }
+select, input[type=date], button, .btn {
+  width: 100%; height: 38px; padding: 0 10px; font: inherit; color: var(--text); background: var(--card);
+  border: .5px solid var(--border); border-radius: var(--radius); }
+button, .btn { cursor: pointer; display: inline-flex; align-items: center; justify-content: center; gap: 6px; text-decoration: none; width: auto; }
+button:hover, .btn:hover { background: var(--soft); }
+.presets { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 10px; }
+.chip { height: 30px; padding: 0 12px; font-size: 13px; border-radius: var(--radius); }
+.chip.on { background: var(--accent-bg); color: var(--accent); border-color: transparent; }
+.stats { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; margin-bottom: 14px; }
+.stat { background: var(--soft); border-radius: var(--radius); padding: 10px 12px; }
+.stat .k { font-size: 12px; color: var(--muted); }
+.stat .v { font-size: 22px; font-weight: 500; }
+.row-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-bottom: 8px; }
+.row-head h2 { font-size: 15px; font-weight: 500; margin: 0; }
+.filter { font-size: 13px; color: var(--accent); background: var(--accent-bg); border-radius: var(--radius); padding: 3px 10px; cursor: pointer; }
+.chart { position: relative; height: 260px; }
+table { width: 100%; border-collapse: collapse; font-size: 14px; }
+th, td { padding: 8px 6px; border-bottom: .5px solid var(--border); text-align: right; white-space: nowrap; }
+th:first-child, td:first-child { text-align: left; white-space: normal; }
+th { font-weight: 400; color: var(--muted); cursor: pointer; user-select: none; }
+th.sorted { color: var(--text); }
+tbody tr { cursor: pointer; }
+tbody tr:hover, tbody tr.sel { background: var(--soft); }
+tfoot td { font-weight: 500; border-bottom: none; }
+.badge { font-size: 11px; padding: 1px 6px; border-radius: 6px; margin-left: 6px; background: var(--soft); color: var(--muted); }
+.badge.restricted { color: var(--danger); }
+.bar { height: 4px; background: var(--soft); border-radius: 2px; margin-top: 4px; overflow: hidden; }
+.bar span { display: block; height: 100%; background: var(--tx); }
+.muted { color: var(--muted); font-size: 13px; }
+footer { display: flex; justify-content: space-between; align-items: center; gap: 8px; }
+.err { color: var(--danger); }
+.legend { display: flex; gap: 14px; font-size: 12px; color: var(--muted); }
+.legend i { display: inline-block; width: 10px; height: 10px; border-radius: 2px; margin-right: 4px; vertical-align: -1px; }
+@media (max-width: 720px) {
+  .controls { grid-template-columns: 1fr 1fr; }
+  .controls .cfg { grid-column: 1 / -1; }
+  .stats { grid-template-columns: 1fr 1fr; }
+  .hide-sm { display: none; }
+  .chart { height: 200px; }
+}
+</style>
+</head>
+<body>
+<main>
+  <header>
+    <h1>WireGuard usage</h1>
+    <a class="btn" id="csv" href="#">Download CSV</a>
+  </header>
+
+  <section class="card">
+    <div class="controls">
+      <div class="cfg"><label for="config">Configuration</label><select id="config"></select></div>
+      <div><label for="start">From</label><input type="date" id="start"></div>
+      <div><label for="end">To</label><input type="date" id="end"></div>
+    </div>
+    <div class="presets" id="presets">
+      <button class="chip" data-p="this-month">This month</button>
+      <button class="chip" data-p="last-month">Last month</button>
+      <button class="chip" data-p="last-30">Last 30 days</button>
+      <button class="chip" data-p="this-year">This year</button>
+    </div>
+  </section>
+
+  <div class="stats">
+    <div class="stat"><div class="k">Sent (to peers)</div><div class="v" id="s-tx">–</div></div>
+    <div class="stat"><div class="k">Received (from peers)</div><div class="v" id="s-rx">–</div></div>
+    <div class="stat"><div class="k">Total</div><div class="v" id="s-all">–</div></div>
+    <div class="stat"><div class="k">Peers with traffic</div><div class="v" id="s-peers">–</div></div>
+  </div>
+
+  <section class="card">
+    <div class="row-head">
+      <h2>Daily usage</h2>
+      <span class="filter" id="filter" hidden title="Show all peers"></span>
+      <div class="legend"><span><i style="background:var(--tx)"></i>Sent</span><span><i style="background:var(--rx)"></i>Received</span></div>
+    </div>
+    <div class="chart"><canvas id="chart"></canvas></div>
+  </section>
+
+  <section class="card">
+    <div class="row-head"><h2>Per peer</h2><span class="muted">Tap a peer to see its daily usage</span></div>
+    <table>
+      <thead><tr>
+        <th data-k="name">Peer</th>
+        <th data-k="tx">Sent</th>
+        <th data-k="rx">Received</th>
+        <th data-k="total">Total</th>
+        <th data-k="share" class="hide-sm">Share</th>
+      </tr></thead>
+      <tbody id="rows"></tbody>
+      <tfoot id="foot"></tfoot>
+    </table>
+    <p class="muted" id="empty" hidden>No traffic in this period.</p>
+  </section>
+
+  <footer class="muted">
+    <span id="status">Loading…</span>
+    <button class="chip" id="refresh">Refresh data</button>
+  </footer>
+</main>
+
+<script src="static/chart.umd.min.js"></script>
+<script>
+const $ = id => document.getElementById(id);
+const state = { config: null, start: null, end: null, peer: null, sort: "total", desc: true, data: null };
+let chart;
+
+const pad = n => String(n).padStart(2, "0");
+const iso = d => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+function fmt(bytes) {
+  const u = ["B", "KB", "MB", "GB", "TB"];
+  let i = 0, v = bytes;
+  while (v >= 1024 && i < u.length - 1) { v /= 1024; i++; }
+  return (i === 0 ? v : v < 10 ? v.toFixed(2) : v < 100 ? v.toFixed(1) : v.toFixed(0)) + " " + u[i];
+}
+function preset(p) {
+  const t = new Date(), y = t.getFullYear(), m = t.getMonth();
+  if (p === "this-month") return [new Date(y, m, 1), t];
+  if (p === "last-month") return [new Date(y, m - 1, 1), new Date(y, m, 0)];
+  if (p === "last-30") return [new Date(t - 29 * 864e5), t];
+  if (p === "this-year") return [new Date(y, 0, 1), t];
+}
+function markPreset() {
+  document.querySelectorAll("#presets .chip").forEach(b => {
+    const [s, e] = preset(b.dataset.p);
+    b.classList.toggle("on", iso(s) === state.start && iso(e) === state.end);
+  });
+}
+function saveUrl() {
+  const q = new URLSearchParams({ config: state.config, start: state.start, end: state.end });
+  if (state.peer) q.set("peer", state.peer);
+  history.replaceState(null, "", "?" + q);
+}
+
+async function getJSON(url) {
+  const r = await fetch(url);
+  if (!r.ok) throw new Error((await r.json().catch(() => ({}))).detail || r.statusText);
+  return r.json();
+}
+
+async function load() {
+  if (!state.config) return;
+  saveUrl(); markPreset();
+  const q = new URLSearchParams({ config: state.config, start: state.start, end: state.end });
+  $("csv").href = "api/usage.csv?" + q;
+  if (state.peer) q.set("peer", state.peer);
+  try {
+    state.data = await getJSON("api/usage?" + q);
+  } catch (e) {
+    $("status").innerHTML = `<span class="err">${e.message}</span>`;
+    return;
+  }
+  render();
+}
+
+function render() {
+  const d = state.data, t = d.totals;
+  $("s-tx").textContent = fmt(t.tx);
+  $("s-rx").textContent = fmt(t.rx);
+  $("s-all").textContent = fmt(t.rx + t.tx);
+  $("s-peers").textContent = d.peers.length;
+
+  const sel = d.peers.find(p => p.id === state.peer);
+  $("filter").hidden = !state.peer;
+  $("filter").textContent = `${sel ? sel.name : "Selected peer"} ✕`;
+
+  const all = t.rx + t.tx || 1;
+  const rows = d.peers.map(p => ({ ...p, total: p.rx + p.tx, share: (p.rx + p.tx) / all }));
+  const k = state.sort, dir = state.desc ? -1 : 1;
+  rows.sort((a, b) => (k === "name" ? a.name.localeCompare(b.name) : a[k] - b[k]) * dir);
+  $("rows").innerHTML = rows.map(p => `
+    <tr data-id="${p.id}" class="${p.id === state.peer ? "sel" : ""}">
+      <td>${esc(p.name)}${p.status !== "active" ? `<span class="badge ${p.status}">${p.status}</span>` : ""}
+        <div class="bar"><span style="width:${(p.share * 100).toFixed(1)}%"></span></div></td>
+      <td>${fmt(p.tx)}</td><td>${fmt(p.rx)}</td><td>${fmt(p.total)}</td>
+      <td class="hide-sm">${(p.share * 100).toFixed(1)}%</td>
+    </tr>`).join("");
+  $("foot").innerHTML = rows.length ? `<tr><td>Total</td><td>${fmt(t.tx)}</td><td>${fmt(t.rx)}</td><td>${fmt(t.rx + t.tx)}</td><td class="hide-sm">100%</td></tr>` : "";
+  $("empty").hidden = rows.length > 0;
+  document.querySelectorAll("th").forEach(th => {
+    th.classList.toggle("sorted", th.dataset.k === k);
+    th.textContent = th.textContent.replace(/ [▲▼]$/, "") + (th.dataset.k === k ? (state.desc ? " ▼" : " ▲") : "");
+  });
+
+  drawChart(d.daily);
+}
+
+function drawChart(daily) {
+  const css = getComputedStyle(document.documentElement);
+  const max = Math.max(1, ...daily.map(x => x.rx + x.tx));
+  const units = ["B", "KB", "MB", "GB", "TB"];
+  let ui = 0; while (max / 1024 ** (ui + 1) >= 1 && ui < 4) ui++;
+  const div = 1024 ** ui;
+  const labels = daily.map(x => x.day.slice(5));
+  const ds = [
+    { label: "Sent", data: daily.map(x => x.tx / div), backgroundColor: css.getPropertyValue("--tx").trim(), stack: "s", borderRadius: 2 },
+    { label: "Received", data: daily.map(x => x.rx / div), backgroundColor: css.getPropertyValue("--rx").trim(), stack: "s", borderRadius: 2 },
+  ];
+  const grid = css.getPropertyValue("--border").trim(), tick = css.getPropertyValue("--muted").trim();
+  if (chart) chart.destroy();
+  chart = new Chart($("chart"), {
+    type: "bar",
+    data: { labels, datasets: ds },
+    options: {
+      maintainAspectRatio: false, animation: false,
+      plugins: { legend: { display: false },
+        tooltip: { callbacks: { title: i => daily[i[0].dataIndex].day, label: c => `${c.dataset.label}: ${fmt(c.raw * div)}` } } },
+      scales: {
+        x: { stacked: true, grid: { display: false }, ticks: { color: tick, maxRotation: 0, autoSkip: true } },
+        y: { stacked: true, grid: { color: grid }, ticks: { color: tick }, title: { display: true, text: units[ui], color: tick } },
+      },
+    },
+  });
+}
+
+const esc = s => String(s).replace(/[&<>"]/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
+
+async function status() {
+  try {
+    const s = await getJSON("api/status");
+    $("status").textContent = s.last_ingest ? `Data updated ${s.last_ingest}` : "Waiting for first import…";
+  } catch { $("status").textContent = ""; }
+}
+
+$("presets").onclick = e => {
+  const p = e.target.dataset.p; if (!p) return;
+  const [s, en] = preset(p);
+  state.start = $("start").value = iso(s);
+  state.end = $("end").value = iso(en);
+  load();
+};
+$("start").onchange = () => { state.start = $("start").value; load(); };
+$("end").onchange = () => { state.end = $("end").value; load(); };
+$("config").onchange = () => { state.config = $("config").value; state.peer = null; load(); };
+$("rows").onclick = e => {
+  const tr = e.target.closest("tr"); if (!tr) return;
+  state.peer = state.peer === tr.dataset.id ? null : tr.dataset.id;
+  load();
+};
+$("filter").onclick = () => { state.peer = null; load(); };
+document.querySelector("thead").onclick = e => {
+  const k = e.target.dataset.k; if (!k) return;
+  state.desc = state.sort === k ? !state.desc : k !== "name";
+  state.sort = k; render();
+};
+$("refresh").onclick = async () => {
+  $("refresh").disabled = true; $("status").textContent = "Importing…";
+  try { await fetch("api/refresh", { method: "POST" }); } finally { $("refresh").disabled = false; }
+  await status(); load();
+};
+matchMedia("(prefers-color-scheme: dark)").addEventListener("change", () => state.data && render());
+
+(async function init() {
+  const q = new URLSearchParams(location.search);
+  const cfgs = await getJSON("api/configs").catch(() => []);
+  $("config").innerHTML = cfgs.map(c => `<option>${esc(c.name)}</option>`).join("");
+  const [s, e] = preset("last-month");
+  state.config = q.get("config") || (cfgs[0] && cfgs[0].name);
+  state.start = q.get("start") || iso(s);
+  state.end = q.get("end") || iso(e);
+  state.peer = q.get("peer");
+  $("config").value = state.config || "";
+  $("start").value = state.start; $("end").value = state.end;
+  await status();
+  if (!cfgs.length) { $("status").textContent = "No data yet. The first import may still be running; tap Refresh data in a minute."; return; }
+  load();
+})();
+</script>
+</body>
+</html>

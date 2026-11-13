@@ -1,0 +1,36 @@
+services:
+  wgdashboard-stats:
+    build: .
+    # Or, to use the pre-built image published by CI instead of building
+    # locally, see docker-compose.ghcr.yml:
+    # image: ghcr.io/shuricksumy/wgdashboard-stats:latest
+    container_name: wgdashboard-stats
+    restart: unless-stopped
+    volumes:
+      # WGDashboard's database folder, read-only. Point this at the folder that holds wgdashboard.db.
+      - /path/to/wgdashboard/db:/data:ro
+      # The app's own small database (hourly totals). Safe to delete; it rebuilds from WGDashboard's history.
+      - ./state:/state
+    environment:
+      - WGD_DB=/data/wgdashboard.db
+      - STATS_DB=/state/stats.db
+      - INGEST_INTERVAL=600   # seconds between imports
+      - TZ=UTC                # your timezone, e.g. Europe/Berlin
+      - LOG_LEVEL=INFO
+    # For a quick test without Traefik, uncomment and open http://<server>:8080
+    # ports:
+    #   - "8080:8080"
+    networks:
+      - proxy
+    labels:
+      # Adjust hostname, entrypoint, certresolver/tls and middleware names to match your other services.
+      - traefik.enable=true
+      - traefik.http.routers.wgstats.rule=Host(`wgstats.example.com`)
+      - traefik.http.routers.wgstats.entrypoints=websecure
+      - traefik.http.routers.wgstats.tls=true
+      - traefik.http.routers.wgstats.middlewares=authelia@docker
+      - traefik.http.services.wgstats.loadbalancer.server.port=8080
+
+networks:
+  proxy:   # your Traefik network
+    external: true
