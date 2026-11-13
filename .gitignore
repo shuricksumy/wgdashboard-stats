@@ -1,0 +1,12 @@
+__pycache__/
+*.pyc
+.pytest_cache/
+/data/
+/state/
+*.db
+*.db-*
+node_modules/
+/demo/
+
+# Claude Code local settings
+.claude/settings.local.json
