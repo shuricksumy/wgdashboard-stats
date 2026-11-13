@@ -122,3 +122,58 @@ def test_source_is_opened_read_only(env):
     src = open_source(wgd.path)
     with pytest.raises(Exception):
         src.execute("CREATE TABLE x (a)")
+
+
+def hourly(dst):
+    return {
+        r["hour"]: (round(r["rx"] / GB, 4), round(r["est_rx"] / GB, 4))
+        for r in dst.execute("SELECT hour, rx, est_rx FROM hourly ORDER BY hour")
+    }
+
+
+def test_gap_without_snapshots_is_spread_and_marked_estimated(env):
+    """WGDashboard recorded nothing for 4 hours; the jump must not land in one hour."""
+    wgd, dst = env
+    wgd.snap("wg0", "A", "2026-04-10 10:00:00", 1.0, 1.0)
+    wgd.snap("wg0", "A", "2026-04-10 10:30:00", 1.5, 1.5)   # normal minute-level usage
+    wgd.snap("wg0", "A", "2026-04-10 14:30:00", 5.5, 5.5)   # +4 GB over a 4 h gap
+    ingest_all(wgd.path, dst)
+    assert totals(dst) == {"A": (4.5, 4.5)}
+    h = hourly(dst)
+    assert h == {
+        "2026-04-10 10:00": (0.5 + 0.5, 0.5),   # own 0.5 + 30 min of the gap
+        "2026-04-10 11:00": (1.0, 1.0),
+        "2026-04-10 12:00": (1.0, 1.0),
+        "2026-04-10 13:00": (1.0, 1.0),
+        "2026-04-10 14:00": (0.5, 0.5),
+    }
+
+
+def test_gap_across_separate_runs(env):
+    wgd, dst = env
+    wgd.snap("wg0", "A", "2026-04-10 13:59:54", 0.55, 1.96)
+    ingest_all(wgd.path, dst)
+    wgd.snap("wg0", "A", "2026-10-23 11:00:42", 13.2, 15.83)
+    ingest_all(wgd.path, dst)
+    h = hourly(dst)
+    assert max(v[0] for v in h.values()) < 0.01            # no single-hour spike
+    assert totals(dst) == {"A": (12.65, 13.87)}
+    assert all(v[0] == v[1] for v in h.values())           # all of it is estimated
+
+
+def test_short_gap_stays_in_its_hour(env):
+    wgd, dst = env
+    wgd.snap("wg0", "A", "2026-04-10 10:00", 1.0, 1.0)
+    wgd.snap("wg0", "A", "2026-04-10 10:50", 2.0, 2.0)     # 50 min: below GAP_MINUTES
+    ingest_all(wgd.path, dst)
+    assert hourly(dst) == {"2026-04-10 10:00": (1.0, 0.0)}
+
+
+def test_old_stats_db_is_rebuilt_on_schema_change(tmp_path):
+    path = str(tmp_path / "stats.db")
+    c = store.connect(path)
+    c.execute("INSERT INTO hourly (config, peer_id, hour, rx, tx) VALUES ('wg0','A','2026-01-01 00:00',1,1)")
+    c.execute("UPDATE meta SET value='1' WHERE key='schema'")
+    c.commit()
+    c.close()
+    assert store.connect(path).execute("SELECT COUNT(*) FROM hourly").fetchone()[0] == 0

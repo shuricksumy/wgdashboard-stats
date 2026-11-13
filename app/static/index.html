@@ -56,6 +56,9 @@ footer { display: flex; justify-content: space-between; align-items: center; gap
 .err { color: var(--danger); }
 .legend { display: flex; gap: 14px; font-size: 12px; color: var(--muted); }
 .legend i { display: inline-block; width: 10px; height: 10px; border-radius: 2px; margin-right: 4px; vertical-align: -1px; }
+.legend i.est { background: repeating-linear-gradient(45deg, var(--muted) 0 2px, transparent 2px 4px); opacity: .7; }
+.stat .n { font-size: 12px; color: var(--muted); }
+.approx { color: var(--muted); cursor: help; }
 @media (max-width: 720px) {
   .controls { grid-template-columns: 1fr 1fr; }
   .controls .cfg { grid-column: 1 / -1; }
@@ -89,7 +92,7 @@ footer { display: flex; justify-content: space-between; align-items: center; gap
   <div class="stats">
     <div class="stat"><div class="k">Sent (to peers)</div><div class="v" id="s-tx">–</div></div>
     <div class="stat"><div class="k">Received (from peers)</div><div class="v" id="s-rx">–</div></div>
-    <div class="stat"><div class="k">Total</div><div class="v" id="s-all">–</div></div>
+    <div class="stat"><div class="k">Total</div><div class="v" id="s-all">–</div><div class="n" id="s-est" hidden></div></div>
     <div class="stat"><div class="k">Peers with traffic</div><div class="v" id="s-peers">–</div></div>
   </div>
 
@@ -97,7 +100,7 @@ footer { display: flex; justify-content: space-between; align-items: center; gap
     <div class="row-head">
       <h2>Daily usage</h2>
       <span class="filter" id="filter" hidden title="Show all peers"></span>
-      <div class="legend"><span><i style="background:var(--tx)"></i>Sent</span><span><i style="background:var(--rx)"></i>Received</span></div>
+      <div class="legend"><span><i style="background:var(--tx)"></i>Sent</span><span><i style="background:var(--rx)"></i>Received</span><span id="lg-est" hidden><i class="est"></i>Estimated</span></div>
     </div>
     <div class="chart"><canvas id="chart"></canvas></div>
   </section>
@@ -184,6 +187,10 @@ function render() {
   $("s-rx").textContent = fmt(t.rx);
   $("s-all").textContent = fmt(t.rx + t.tx);
   $("s-peers").textContent = d.peers.length;
+  const est = t.est_rx + t.est_tx;
+  $("s-est").hidden = est < 1048576;
+  $("s-est").textContent = `incl. ${fmt(est)} estimated`;
+  $("s-est").title = "WGDashboard recorded no snapshots for part of this period; usage across the gap is spread evenly.";
 
   const sel = d.peers.find(p => p.id === state.peer);
   $("filter").hidden = !state.peer;
@@ -197,7 +204,7 @@ function render() {
     <tr data-id="${p.id}" class="${p.id === state.peer ? "sel" : ""}">
       <td>${esc(p.name)}${p.status !== "active" ? `<span class="badge ${p.status}">${p.status}</span>` : ""}
         <div class="bar"><span style="width:${(p.share * 100).toFixed(1)}%"></span></div></td>
-      <td>${fmt(p.tx)}</td><td>${fmt(p.rx)}</td><td>${fmt(p.total)}</td>
+      <td>${fmt(p.tx)}</td><td>${fmt(p.rx)}</td><td>${(p.est_rx + p.est_tx) > 0.05 * p.total ? `<span class="approx" title="${fmt(p.est_rx + p.est_tx)} estimated (no snapshots)">≈</span>` : ""}${fmt(p.total)}</td>
       <td class="hide-sm">${(p.share * 100).toFixed(1)}%</td>
     </tr>`).join("");
   $("foot").innerHTML = rows.length ? `<tr><td>Total</td><td>${fmt(t.tx)}</td><td>${fmt(t.rx)}</td><td>${fmt(t.rx + t.tx)}</td><td class="hide-sm">100%</td></tr>` : "";
@@ -217,10 +224,14 @@ function drawChart(daily) {
   let ui = 0; while (max / 1024 ** (ui + 1) >= 1 && ui < 4) ui++;
   const div = 1024 ** ui;
   const labels = daily.map(x => x.day.slice(5));
+  const txc = css.getPropertyValue("--tx").trim(), rxc = css.getPropertyValue("--rx").trim();
   const ds = [
-    { label: "Sent", data: daily.map(x => x.tx / div), backgroundColor: css.getPropertyValue("--tx").trim(), stack: "s", borderRadius: 2 },
-    { label: "Received", data: daily.map(x => x.rx / div), backgroundColor: css.getPropertyValue("--rx").trim(), stack: "s", borderRadius: 2 },
+    { label: "Sent", data: daily.map(x => (x.tx - x.est_tx) / div), backgroundColor: txc, stack: "s" },
+    { label: "Sent (estimated)", data: daily.map(x => x.est_tx / div), backgroundColor: txc + "55", stack: "s" },
+    { label: "Received", data: daily.map(x => (x.rx - x.est_rx) / div), backgroundColor: rxc, stack: "s" },
+    { label: "Received (estimated)", data: daily.map(x => x.est_rx / div), backgroundColor: rxc + "55", stack: "s" },
   ];
+  $("lg-est").hidden = !daily.some(x => x.est_rx + x.est_tx > 0);
   const grid = css.getPropertyValue("--border").trim(), tick = css.getPropertyValue("--muted").trim();
   if (chart) chart.destroy();
   chart = new Chart($("chart"), {
@@ -229,7 +240,7 @@ function drawChart(daily) {
     options: {
       maintainAspectRatio: false, animation: false,
       plugins: { legend: { display: false },
-        tooltip: { callbacks: { title: i => daily[i[0].dataIndex].day, label: c => `${c.dataset.label}: ${fmt(c.raw * div)}` } } },
+        tooltip: { filter: c => c.raw > 0, callbacks: { title: i => daily[i[0].dataIndex].day, label: c => `${c.dataset.label}: ${fmt(c.raw * div)}` } } },
       scales: {
         x: { stacked: true, grid: { display: false }, ticks: { color: tick, maxRotation: 0, autoSkip: true } },
         y: { stacked: true, grid: { color: grid }, ticks: { color: tick }, title: { display: true, text: units[ui], color: tick } },

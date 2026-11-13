@@ -39,6 +39,7 @@ Or build locally with `docker compose up -d --build` using [docker-compose.yml](
 | `WGD_DB` | `/data/wgdashboard.db` | WGDashboard's SQLite database (mount its folder read-only) |
 | `STATS_DB` | `/state/stats.db` | The app's own database of hourly totals |
 | `INGEST_INTERVAL` | `600` | Seconds between imports (`0` disables the background import) |
+| `GAP_MINUTES` | `60` | A peer with no snapshots for longer than this has its usage spread over the gap and marked estimated |
 | `TZ` | `UTC` | Timezone for "data updated" times; WGDashboard stores local time |
 | `PORT` | `8080` | HTTP port |
 | `LOG_LEVEL` | `INFO` | Python log level |
@@ -54,6 +55,8 @@ Each snapshot holds lifetime counters (`cumu_*` + `total_*`, in GB). Usage is th
 - **Real resets.** "Reset data usage" in WGDashboard, or a counter restart, drops the counter below half of its baseline. The new value is counted as fresh usage.
 
 If WGDashboard clears or vacuums the transfer table, the import resumes by timestamp.
+
+**Gaps.** If WGDashboard recorded nothing for a peer for longer than `GAP_MINUTES` (it was stopped, or tracking was off), the counter increase across the gap is real traffic but its timing is unknown. It is spread evenly over the gap and shown as *estimated* (lighter bars, "incl. … estimated" under the total, ≈ next to affected peers) instead of appearing as one huge spike.
 
 ## API
 

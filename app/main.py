@@ -82,12 +82,13 @@ def api_usage_csv(config: str, start: date, end: date):
         data = queries.usage(db, config, start, end)
     buf = io.StringIO()
     w = csv.writer(buf)
-    w.writerow(["peer", "status", "public_key", "received_gb", "sent_gb", "total_gb", "received_bytes", "sent_bytes"])
+    w.writerow(["peer", "status", "public_key", "received_gb", "sent_gb", "total_gb", "received_bytes", "sent_bytes", "estimated_gb"])
     for p in data["peers"]:
         w.writerow([p["name"], p["status"], p["id"], f"{p['rx'] / GB:.3f}", f"{p['tx'] / GB:.3f}",
-                    f"{(p['rx'] + p['tx']) / GB:.3f}", p["rx"], p["tx"]])
+                    f"{(p['rx'] + p['tx']) / GB:.3f}", p["rx"], p["tx"], f"{(p['est_rx'] + p['est_tx']) / GB:.3f}"])
     t = data["totals"]
-    w.writerow(["TOTAL", "", "", f"{t['rx'] / GB:.3f}", f"{t['tx'] / GB:.3f}", f"{(t['rx'] + t['tx']) / GB:.3f}", t["rx"], t["tx"]])
+    w.writerow(["TOTAL", "", "", f"{t['rx'] / GB:.3f}", f"{t['tx'] / GB:.3f}", f"{(t['rx'] + t['tx']) / GB:.3f}", t["rx"], t["tx"],
+                f"{(t['est_rx'] + t['est_tx']) / GB:.3f}"])
     name = f"wg-usage_{config}_{start}_{end}.csv"
     return StreamingResponse(iter([buf.getvalue()]), media_type="text/csv",
                              headers={"Content-Disposition": f'attachment; filename="{name}"'})

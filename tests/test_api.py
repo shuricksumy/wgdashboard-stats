@@ -1,4 +1,5 @@
 import importlib
+from datetime import timedelta
 
 import pytest
 from fastapi.testclient import TestClient
@@ -18,6 +19,7 @@ def client(tmp_path, monkeypatch):
     monkeypatch.setenv("WGD_DB", wgd.path)
     monkeypatch.setenv("STATS_DB", str(tmp_path / "stats.db"))
     monkeypatch.setenv("INGEST_INTERVAL", "0")
+    monkeypatch.setattr("app.ingest.GAP", timedelta(days=365))  # sparse fixture: keep usage on its day
     import app.main as m
     importlib.reload(m)
     with TestClient(m.app) as c:
@@ -32,9 +34,9 @@ def test_usage_for_october(client):
     r = client.get("/api/usage", params={"config": "wg0", "start": "2026-10-01", "end": "2026-10-31"}).json()
     peers = {p["name"]: (p["rx"] / GB, p["tx"] / GB, p["status"]) for p in r["peers"]}
     assert peers == {"Phone": (3.0, 1.5, "active"), "Laptop": (1.0, 1.0, "restricted")}
-    assert r["totals"] == {"rx": 4 * GB, "tx": round(2.5 * GB)}
+    assert r["totals"] == {"rx": 4 * GB, "tx": round(2.5 * GB), "est_rx": 0, "est_tx": 0}
     assert len(r["daily"]) == 31
-    assert r["daily"][0] == {"day": "2026-10-01", "rx": 1.5 * GB, "tx": 1.0 * GB}
+    assert r["daily"][0] == {"day": "2026-10-01", "rx": 1.5 * GB, "tx": 1.0 * GB, "est_rx": 0, "est_tx": 0}
     assert r["daily"][5]["rx"] == 0
 
 

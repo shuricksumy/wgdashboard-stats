@@ -11,16 +11,23 @@ increase between consecutive snapshots of the same peer, with three traps handle
   kept as the baseline so the same traffic is never counted twice.
 * A drop to below half of the baseline is a real reset (usage reset in the UI, or a
   counter restart), and the new value is counted as fresh usage.
+
+When a peer has no snapshots for longer than GAP_MINUTES (WGDashboard stopped, or
+tracking was off), the usage across the gap is unknown in time. It is spread evenly
+over the gap and also recorded in est_rx/est_tx, so the UI can show it as estimated.
 """
 import logging
+import os
 import sqlite3
 import time
+from datetime import datetime, timedelta
 
 log = logging.getLogger("wgstats.ingest")
 
 GB = 1024 ** 3
 RESET_RATIO = 0.5
 BATCH = 20000
+GAP = timedelta(minutes=int(os.environ.get("GAP_MINUTES", "60")))
 PEER_TABLES = (("", "active"), ("_restrict_access", "restricted"), ("_deleted", "deleted"))
 
 
@@ -57,6 +64,25 @@ def step(prev: float | None, cur: float) -> tuple[float, float]:
 def hour_of(t: str) -> str:
     t = str(t).replace("T", " ")
     return t[:13] + ":00"
+
+
+def parse_time(t) -> datetime | None:
+    try:
+        return datetime.fromisoformat(str(t).replace("T", " "))
+    except ValueError:
+        return None
+
+
+def spread(start: datetime, end: datetime):
+    """Yield (hour, fraction of the interval) for every hour that [start, end] touches."""
+    total = (end - start).total_seconds()
+    h = start.replace(minute=0, second=0, microsecond=0)
+    while h < end:
+        nxt = h + timedelta(hours=1)
+        part = (min(end, nxt) - max(start, h)).total_seconds()
+        if part > 0:
+            yield h.strftime("%Y-%m-%d %H:00"), part / total
+        h = nxt
 
 
 def refresh_peers(src, dst, config: str) -> None:
@@ -101,8 +127,8 @@ def ingest_config(src, dst, config: str) -> int:
     refresh_peers(src, dst, config)
     start = _start_rowid(src, dst, config)
     state = {
-        r["peer_id"]: [r["rx"], r["tx"]]
-        for r in dst.execute("SELECT peer_id, rx, tx FROM peer_state WHERE config=?", (config,))
+        r["peer_id"]: [r["rx"], r["tx"], r["time"]]
+        for r in dst.execute("SELECT peer_id, rx, tx, time FROM peer_state WHERE config=?", (config,))
     }
     total = 0
     while True:
@@ -116,26 +142,40 @@ def ingest_config(src, dst, config: str) -> int:
         if not rows:
             break
         buckets: dict[tuple[str, str], list[float]] = {}
+
+        def add(pid, hour, rx, tx, est):
+            b = buckets.setdefault((pid, hour), [0.0, 0.0, 0.0, 0.0])
+            b[0] += rx
+            b[1] += tx
+            if est:
+                b[2] += rx
+                b[3] += tx
+
         for r in rows:
-            prev = state.get(r["id"], [None, None])
+            prev = state.get(r["id"], [None, None, None])
             drx, brx = step(prev[0], r["rx"])
             dtx, btx = step(prev[1], r["tx"])
-            state[r["id"]] = [brx, btx]
-            if drx or dtx:
-                b = buckets.setdefault((r["id"], hour_of(r["time"])), [0.0, 0.0])
-                b[0] += drx
-                b[1] += dtx
+            state[r["id"]] = [brx, btx, str(r["time"])]
+            if not (drx or dtx):
+                continue
+            t0, t1 = parse_time(prev[2]), parse_time(r["time"])
+            if t0 and t1 and t1 - t0 > GAP:
+                for hour, frac in spread(t0, t1):
+                    add(r["id"], hour, drx * frac, dtx * frac, True)
+            else:
+                add(r["id"], hour_of(r["time"]), drx, dtx, False)
         last = rows[-1]
         with dst:
             dst.executemany(
-                "INSERT INTO hourly (config, peer_id, hour, rx, tx) VALUES (?, ?, ?, ?, ?) "
-                "ON CONFLICT(config, peer_id, hour) DO UPDATE SET rx=rx+excluded.rx, tx=tx+excluded.tx",
-                [(config, pid, h, round(v[0] * GB), round(v[1] * GB)) for (pid, h), v in buckets.items()],
+                "INSERT INTO hourly (config, peer_id, hour, rx, tx, est_rx, est_tx) VALUES (?, ?, ?, ?, ?, ?, ?) "
+                "ON CONFLICT(config, peer_id, hour) DO UPDATE SET rx=rx+excluded.rx, tx=tx+excluded.tx, "
+                "est_rx=est_rx+excluded.est_rx, est_tx=est_tx+excluded.est_tx",
+                [(config, pid, h, *(round(x * GB) for x in v)) for (pid, h), v in buckets.items()],
             )
             dst.executemany(
-                "INSERT INTO peer_state (config, peer_id, rx, tx) VALUES (?, ?, ?, ?) "
-                "ON CONFLICT(config, peer_id) DO UPDATE SET rx=excluded.rx, tx=excluded.tx",
-                [(config, pid, v[0], v[1]) for pid, v in state.items() if v[0] is not None],
+                "INSERT INTO peer_state (config, peer_id, rx, tx, time) VALUES (?, ?, ?, ?, ?) "
+                "ON CONFLICT(config, peer_id) DO UPDATE SET rx=excluded.rx, tx=excluded.tx, time=excluded.time",
+                [(config, pid, v[0], v[1], v[2]) for pid, v in state.items() if v[0] is not None],
             )
             dst.execute(
                 "INSERT INTO cursor (config, last_rowid, last_time) VALUES (?, ?, ?) "

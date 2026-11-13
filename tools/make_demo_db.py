@@ -22,7 +22,8 @@ while t < datetime(2026, 11, 13, 9):
         counters[pid][0] += rate * hour_factor * random.uniform(0.2, 1.8)
         counters[pid][1] += rate * 0.35 * hour_factor * random.uniform(0.2, 1.8)
         cfg = "wg1" if pid == "Z1" else "wg0"
-        rows.append((cfg, pid, t.strftime("%Y-%m-%d %H:%M:%S.%f"), *counters[pid]))
+        if not (datetime(2026, 10, 10, 9) <= t < datetime(2026, 10, 15, 14)):  # WGDashboard "down"
+            rows.append((cfg, pid, t.strftime("%Y-%m-%d %H:%M:%S.%f"), *counters[pid]))
     t += timedelta(minutes=1)
 for cfg in ("wg0", "wg1"):
     w.conn.executemany(
