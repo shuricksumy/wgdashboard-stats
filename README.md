@@ -113,7 +113,7 @@ python tools/make_demo_db.py demo/wgdashboard.db
 WGD_DB=demo/wgdashboard.db STATS_DB=demo/stats.db uvicorn app.main:app --reload
 ```
 
-Work happens on `dev` (publishes the `:dev` image) and reaches `main` through a pull request. GitHub Actions run the tests and build the image on every push and pull request, CodeQL scans the code weekly, Dependabot and Renovate keep dependencies and pinned actions up to date (patch updates merge themselves once checks pass), and old image tags are cleaned up weekly. Releases are cut by pushing a `vX.Y.Z` tag.
+Work happens on `dev` (publishes the `:dev` image) and reaches `main` through a pull request. GitHub Actions run the tests and build the image on every push and pull request, CodeQL scans the code weekly, Dependabot and Renovate keep dependencies and pinned actions up to date (patch updates merge themselves once checks pass), and old image tags are cleaned up weekly. Releases are made with the **Release** workflow (Actions → Release → Run workflow on `main`, enter e.g. `1.1.0`): it runs the tests, creates the tag and GitHub release (notes from `docs/releases/vX.Y.Z.md` if present) and publishes the `X.Y.Z`, `X.Y` and `latest` images. Pushing a `vX.Y.Z` tag yourself also publishes the images.
 
 ## Roadmap
 
