@@ -1,0 +1,36 @@
+name: Branch cleanup
+
+# Only `main` is long-lived. Deletes every other branch whose pull request was
+# merged (or that has nothing main doesn't already have). Branches with an open
+# pull request, or with unmerged work, are kept.
+on:
+  workflow_dispatch: {}
+  schedule:
+    - cron: "41 3 * * 0" # Sundays 03:41 UTC
+
+permissions:
+  contents: write
+  pull-requests: read
+
+jobs:
+  cleanup:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Delete merged branches
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          REPO: ${{ github.repository }}
+        run: |
+          owner="${REPO%%/*}"
+          gh api --paginate "repos/$REPO/branches" --jq '.[].name' | while read -r b; do
+            [ "$b" = "main" ] && continue
+            open=$(gh api "repos/$REPO/pulls?state=open&head=$owner:$b" --jq 'length')
+            if [ "$open" -gt 0 ]; then echo "keep   $b (open pull request)"; continue; fi
+            merged=$(gh api "repos/$REPO/pulls?state=closed&head=$owner:$b" --jq '[.[] | select(.merged_at != null)] | length')
+            ahead=$(gh api "repos/$REPO/compare/main...$(printf %s "$b" | jq -sRr @uri)" --jq '.ahead_by')
+            if [ "$merged" -gt 0 ] || [ "$ahead" = "0" ]; then
+              gh api -X DELETE "repos/$REPO/git/refs/heads/$b" && echo "delete $b"
+            else
+              echo "keep   $b ($ahead unmerged commits)"
+            fi
+          done
