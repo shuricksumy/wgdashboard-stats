@@ -17,7 +17,7 @@ WGDashboard only shows lifetime totals per peer. It does, however, record a snap
 
 - Any date range, with presets: this month, last month, last 30 days, this year
 - Sent / received / total per peer and overall, with each peer's share
-- Daily stacked chart; tap a peer to see only its days
+- Daily chart, either sent and received stacked or combined into one in + out bar; tap a peer to see only its days
 - Restricted and deleted peers included
 - CSV export of the selected range
 - Periods when WGDashboard wasn't recording are spread out and marked *estimated* instead of showing up as one huge spike
